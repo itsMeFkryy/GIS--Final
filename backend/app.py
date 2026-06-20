@@ -12,6 +12,7 @@ import json
 import os
 import uuid
 import datetime
+import socket
 
 # Laporan data is now queried dynamically from PostgreSQL 'laporan' table.
 FALLBACK_REPORTS = [
@@ -97,15 +98,32 @@ CORS(app)
 
 # === HELPER: Koneksi database ===
 def get_db():
-    """Membuka koneksi ke database PostgreSQL/PostGIS dengan re-use koneksi dan Circuit Breaker"""
+    """Membuka koneksi ke database PostgreSQL/PostGIS dengan re-use koneksi, Circuit Breaker, dan Fail-Fast Socket Check"""
     global _shared_conn, _db_connected, _last_db_check
     
     current_time = time.time()
     
-    # Jika database diketahui sedang offline dan belum lewat 30 detik, langsung gagalkan instan (Circuit Breaker)
+    # 1. Jika database diketahui sedang offline dan belum lewat 30 detik, langsung gagalkan instan (Circuit Breaker)
     if _db_connected is False and (current_time - _last_db_check < _db_check_interval):
         raise psycopg2.OperationalError("Database is offline (circuit breaker active)")
 
+    # 2. Cek koneksi port mentah dengan Socket (Timeout sangat cepat: 0.5 detik)
+    # Ini mencegah psycopg2 menggantung lama jika host/port tidak dapat dijangkau
+    host = DB_CONFIG.get("host", "localhost")
+    port = int(DB_CONFIG.get("port", 5432))
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(0.5)  # Hanya tunggu maksimal 0.5 detik
+        s.connect((host, port))
+        s.close()
+    except Exception as socket_err:
+        # Jika socket gagal terhubung, langsung tandai offline dan bypass psycopg2
+        _db_connected = False
+        _last_db_check = current_time
+        _shared_conn = None
+        raise psycopg2.OperationalError(f"Database port unreachable (fail-fast): {socket_err}")
+
+    # 3. Lakukan koneksi PostgreSQL jika port terbuka
     try:
         # Cek apakah koneksi lama masih hidup menggunakan SELECT 1
         if _shared_conn is not None:
@@ -123,17 +141,15 @@ def get_db():
         if _shared_conn is None or _shared_conn.closed != 0:
             _shared_conn = psycopg2.connect(**DB_CONFIG)
             
-        # Jika berhasil terhubung
         _db_connected = True
         _last_db_check = current_time
         return SharedConnectionWrapper(_shared_conn)
         
     except Exception as e:
-        # Jika gagal terhubung, aktifkan Circuit Breaker
         _db_connected = False
         _last_db_check = current_time
         _shared_conn = None
-        raise psycopg2.OperationalError(f"Database offline: {e}")
+        raise psycopg2.OperationalError(f"Database connection error: {e}")
 
 
 # === HELPER: Hitung prevalensi stunting ===
