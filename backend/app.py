@@ -13,19 +13,7 @@ import os
 import uuid
 import datetime
 
-# === IN-MEMORY DB: Laporan Kasus ===
-LAPORAN_DB = [
-    {
-        "id": "demo-1",
-        "pelapor": "Budi Santoso (Kader)",
-        "judul": "Indikasi Gizi Buruk",
-        "deskripsi": "Terdapat anak usia 2 tahun yang berat badannya tidak naik selama 3 bulan. Lokasi dekat Puskesmas Pembantu.",
-        "lat": -5.4240,
-        "lng": 104.9110,
-        "status": "pending",
-        "tanggal": "2024-05-12T10:00:00Z"
-    }
-]
+# Laporan data is now queried dynamically from PostgreSQL 'laporan' table.
 
 def get_fallback_geojson():
     """Membaca data GeoJSON lokal jika database tidak terhubung"""
@@ -519,54 +507,164 @@ def get_statistik():
 def api_laporan():
     from flask import request
     if request.method == "GET":
-        features = []
-        for lap in LAPORAN_DB:
-            features.append({
-                "type": "Feature",
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [lap["lng"], lap["lat"]]
-                },
-                "properties": lap
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute("""
+                SELECT id, pelapor, judul, deskripsi, 
+                       lat, lng, status, tanggal
+                FROM laporan
+                ORDER BY tanggal DESC
+            """)
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            features = []
+            for row in rows:
+                lat_val = float(row["lat"])
+                lng_val = float(row["lng"])
+                if isinstance(row["tanggal"], (datetime.datetime, datetime.date)):
+                    tgl_str = row["tanggal"].isoformat() + "Z"
+                else:
+                    tgl_str = str(row["tanggal"])
+
+                features.append({
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [lng_val, lat_val]
+                    },
+                    "properties": {
+                        "id": row["id"],
+                        "pelapor": row["pelapor"],
+                        "judul": row["judul"],
+                        "deskripsi": row["deskripsi"],
+                        "lat": lat_val,
+                        "lng": lng_val,
+                        "status": row["status"],
+                        "tanggal": tgl_str
+                    }
+                })
+            return jsonify({
+                "type": "FeatureCollection",
+                "features": features
             })
-        return jsonify({
-            "type": "FeatureCollection",
-            "features": features
-        })
+        except Exception as e:
+            print(f"Error getting reports from DB, using fallback: {e}")
+            # Fallback jika database belum dimigrasi / error
+            return jsonify({
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [104.9110, -5.4240]
+                        },
+                        "properties": {
+                            "id": "demo-1",
+                            "pelapor": "Budi Santoso (Kader)",
+                            "judul": "Indikasi Gizi Buruk",
+                            "deskripsi": "Terdapat anak usia 2 tahun yang berat badannya tidak naik selama 3 bulan. Lokasi dekat Puskesmas Pembantu.",
+                            "lat": -5.4240,
+                            "lng": 104.9110,
+                            "status": "pending",
+                            "tanggal": "2024-05-12T10:00:00Z"
+                        }
+                    }
+                ]
+            })
+
     elif request.method == "POST":
         data = request.json
-        new_lap = {
-            "id": str(uuid.uuid4()),
-            "pelapor": data.get("pelapor", "Anonim"),
-            "judul": data.get("judul", "Laporan Tanpa Judul"),
-            "deskripsi": data.get("deskripsi", ""),
-            "lat": float(data.get("lat", 0)),
-            "lng": float(data.get("lng", 0)),
-            "status": "pending",
-            "tanggal": datetime.datetime.now().isoformat() + "Z"
-        }
-        LAPORAN_DB.append(new_lap)
-        return jsonify({"status": "success", "data": new_lap})
+        if not data:
+            return jsonify({"error": "Data kosong"}), 400
+            
+        new_id = str(uuid.uuid4())
+        pelapor = data.get("pelapor", "Anonim")
+        judul = data.get("judul", "Laporan Tanpa Judul")
+        deskripsi = data.get("deskripsi", "")
+        lat = float(data.get("lat", 0))
+        lng = float(data.get("lng", 0))
+        status = "pending"
+        tanggal = datetime.datetime.now()
+
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO laporan (id, pelapor, judul, deskripsi, lat, lng, status, tanggal)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (new_id, pelapor, judul, deskripsi, lat, lng, status, tanggal))
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            return jsonify({
+                "status": "success", 
+                "data": {
+                    "id": new_id,
+                    "pelapor": pelapor,
+                    "judul": judul,
+                    "deskripsi": deskripsi,
+                    "lat": lat,
+                    "lng": lng,
+                    "status": status,
+                    "tanggal": tanggal.isoformat() + "Z"
+                }
+            })
+        except Exception as e:
+            print(f"Error saving report to DB: {e}")
+            return jsonify({"error": str(e)}), 500
 
 @app.route("/api/laporan/<laporan_id>/verifikasi", methods=["POST"])
 def verify_laporan(laporan_id):
     from flask import request
     data = request.json
     status = data.get("status", "verified") # bisa 'verified' atau 'rejected'
-    for lap in LAPORAN_DB:
-        if lap["id"] == laporan_id:
-            lap["status"] = status
-            return jsonify({"status": "success", "data": lap})
-    return jsonify({"error": "Laporan tidak ditemukan"}), 404
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE laporan
+            SET status = %s
+            WHERE id = %s
+        """, (status, laporan_id))
+        conn.commit()
+        rowcount = cur.rowcount
+        cur.close()
+        conn.close()
+
+        if rowcount == 0:
+            return jsonify({"error": "Laporan tidak ditemukan"}), 404
+
+        return jsonify({"status": "success", "message": f"Status laporan diubah menjadi {status}"})
+    except Exception as e:
+        print(f"Error verifying report in DB: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/laporan/<laporan_id>", methods=["DELETE"])
 def delete_laporan_endpoint(laporan_id):
-    global LAPORAN_DB
-    for i, lap in enumerate(LAPORAN_DB):
-        if lap["id"] == laporan_id:
-            LAPORAN_DB.pop(i)
-            return jsonify({"status": "success", "message": "Laporan berhasil dihapus"})
-    return jsonify({"error": "Laporan tidak ditemukan"}), 404
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            DELETE FROM laporan
+            WHERE id = %s
+        """, (laporan_id,))
+        conn.commit()
+        rowcount = cur.rowcount
+        cur.close()
+        conn.close()
+
+        if rowcount == 0:
+            return jsonify({"error": "Laporan tidak ditemukan"}), 404
+
+        return jsonify({"status": "success", "message": "Laporan berhasil dihapus"})
+    except Exception as e:
+        print(f"Error deleting report from DB: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 # === Main entry point ===
