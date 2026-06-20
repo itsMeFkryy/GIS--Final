@@ -38,14 +38,84 @@ def get_fallback_geojson():
         print(f"Error loading fallback geojson: {e}")
         return None
 
+import time
+
+# Reusable shared database connection
+_shared_conn = None
+
+class SharedConnectionWrapper:
+    """Wrapper agar pemanggilan conn.close() tidak memutus koneksi fisik database"""
+    def __init__(self, real_conn):
+        self.real_conn = real_conn
+    def cursor(self, *args, **kwargs):
+        return self.real_conn.cursor(*args, **kwargs)
+    def commit(self):
+        self.real_conn.commit()
+    def rollback(self):
+        self.real_conn.rollback()
+    def close(self):
+        # Sengaja tidak menutup koneksi fisik agar bisa dipakai lagi
+        pass
+
+# Cache data structure
+API_CACHE = {
+    "wilayah": {"data": None, "timestamp": 0},
+    "posyandu": {"data": None, "timestamp": 0},
+    "faskes": {"data": None, "timestamp": 0},
+    "statistik": {"data": None, "timestamp": 0},
+    "laporan": {"data": None, "timestamp": 0}
+}
+CACHE_TTL = 15  # Cache time-to-live in seconds
+
+def get_cached_data(key):
+    """Mengambil data dari cache jika masih fresh (di bawah TTL)"""
+    cache_item = API_CACHE.get(key)
+    if cache_item and cache_item["data"] is not None:
+        if time.time() - cache_item["timestamp"] < CACHE_TTL:
+            return cache_item["data"]
+    return None
+
+def set_cached_data(key, data):
+    """Menyimpan data ke cache dengan timestamp saat ini"""
+    API_CACHE[key] = {
+        "data": data,
+        "timestamp": time.time()
+    }
+
+def clear_api_cache():
+    """Menghapus semua cache saat terjadi pembaruan data (POST/DELETE)"""
+    for key in API_CACHE:
+        API_CACHE[key]["data"] = None
+        API_CACHE[key]["timestamp"] = 0
+
 app = Flask(__name__)
 CORS(app)
 
 
 # === HELPER: Koneksi database ===
 def get_db():
-    """Membuka koneksi ke database PostgreSQL/PostGIS"""
-    return psycopg2.connect(**DB_CONFIG)
+    """Membuka koneksi ke database PostgreSQL/PostGIS dengan re-use koneksi"""
+    global _shared_conn
+    
+    # Cek apakah koneksi lama masih hidup menggunakan SELECT 1
+    if _shared_conn is not None:
+        try:
+            with _shared_conn.cursor() as test_cur:
+                test_cur.execute("SELECT 1")
+        except Exception:
+            # Jika mati, tutup fisik dan set None agar dibuka kembali
+            try:
+                _shared_conn.close()
+            except Exception:
+                pass
+            _shared_conn = None
+
+    # Buka koneksi baru jika belum ada atau terputus
+    if _shared_conn is None or _shared_conn.closed != 0:
+        _shared_conn = psycopg2.connect(**DB_CONFIG)
+        
+    return SharedConnectionWrapper(_shared_conn)
+
 
 
 # === HELPER: Hitung prevalensi stunting ===
@@ -128,6 +198,10 @@ def build_properties(row):
 @app.route("/api/wilayah", methods=["GET"])
 def get_wilayah():
     """Mengembalikan GeoJSON FeatureCollection semua wilayah"""
+    cached = get_cached_data("wilayah")
+    if cached is not None:
+        return jsonify(cached)
+
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -154,10 +228,12 @@ def get_wilayah():
             }
             features.append(feat)
 
-        return jsonify({
+        result = {
             "type": "FeatureCollection",
             "features": features
-        })
+        }
+        set_cached_data("wilayah", result)
+        return jsonify(result)
 
     except Exception as e:
         print(f"Database error in get_wilayah, trying fallback: {e}")
@@ -241,9 +317,11 @@ def update_wilayah_data():
         except Exception as file_err:
             print(f"Gagal update fallback GeoJSON: {file_err}")
 
+        clear_api_cache()
         return jsonify({"status": "success", "message": "Data wilayah berhasil diperbarui"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 # ============================================================
@@ -295,6 +373,10 @@ def get_wilayah_detail(kode):
 @app.route("/api/posyandu", methods=["GET"])
 def get_posyandu():
     """Mengembalikan GeoJSON FeatureCollection titik posyandu"""
+    cached = get_cached_data("posyandu")
+    if cached is not None:
+        return jsonify(cached)
+
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -321,10 +403,12 @@ def get_posyandu():
             }
             features.append(feat)
 
-        return jsonify({
+        result = {
             "type": "FeatureCollection",
             "features": features
-        })
+        }
+        set_cached_data("posyandu", result)
+        return jsonify(result)
 
     except Exception as e:
         print(f"Database error in get_posyandu, trying fallback: {e}")
@@ -351,6 +435,10 @@ def get_posyandu():
 @app.route("/api/faskes", methods=["GET"])
 def get_faskes():
     """Mengembalikan GeoJSON FeatureCollection fasilitas kesehatan"""
+    cached = get_cached_data("faskes")
+    if cached is not None:
+        return jsonify(cached)
+
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -378,10 +466,12 @@ def get_faskes():
             }
             features.append(feat)
 
-        return jsonify({
+        result = {
             "type": "FeatureCollection",
             "features": features
-        })
+        }
+        set_cached_data("faskes", result)
+        return jsonify(result)
 
     except Exception as e:
         print(f"Database error in get_faskes, trying fallback: {e}")
@@ -408,6 +498,10 @@ def get_faskes():
 @app.route("/api/statistik", methods=["GET"])
 def get_statistik():
     """Mengembalikan JSON ringkasan statistik stunting"""
+    cached = get_cached_data("statistik")
+    if cached is not None:
+        return jsonify(cached)
+
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -459,7 +553,7 @@ def get_statistik():
         rentan_list.sort(key=lambda x: x["sk_rentan"], reverse=True)
         top_rentan = rentan_list[:3]
 
-        return jsonify({
+        result = {
             "total_balita":  total_balita,
             "total_stunting": total_stunt,
             "prev_total":    prev_total,
@@ -471,7 +565,9 @@ def get_statistik():
             "kat_tinggi":    kat_tinggi,
             "kat_sangat":    kat_sangat,
             "top_rentan":    top_rentan
-        })
+        }
+        set_cached_data("statistik", result)
+        return jsonify(result)
 
     except Exception as e:
         print(f"Database error in get_statistik, trying fallback: {e}")
@@ -520,6 +616,10 @@ def get_statistik():
 def api_laporan():
     from flask import request
     if request.method == "GET":
+        cached = get_cached_data("laporan")
+        if cached is not None:
+            return jsonify(cached)
+
         try:
             conn = get_db()
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -559,10 +659,12 @@ def api_laporan():
                         "tanggal": tgl_str
                     }
                 })
-            return jsonify({
+            result = {
                 "type": "FeatureCollection",
                 "features": features
-            })
+            }
+            set_cached_data("laporan", result)
+            return jsonify(result)
         except Exception as e:
             print(f"Error getting reports from DB, using fallback: {e}")
             # Fallback jika database belum dimigrasi / error
@@ -596,6 +698,7 @@ def api_laporan():
             cur.close()
             conn.close()
 
+            clear_api_cache()
             return jsonify({
                 "status": "success", 
                 "data": {
@@ -621,6 +724,7 @@ def api_laporan():
                 }
             }
             FALLBACK_REPORTS.insert(0, new_report)
+            clear_api_cache()
             return jsonify({
                 "status": "success", 
                 "data": new_report["properties"]
@@ -647,6 +751,7 @@ def verify_laporan(laporan_id):
         if rowcount == 0:
             return jsonify({"error": "Laporan tidak ditemukan"}), 404
 
+        clear_api_cache()
         return jsonify({"status": "success", "message": f"Status laporan diubah menjadi {status}"})
     except Exception as e:
         print(f"Error verifying report in DB, using fallback: {e}")
@@ -654,6 +759,7 @@ def verify_laporan(laporan_id):
         for report in FALLBACK_REPORTS:
             if report["properties"]["id"] == laporan_id:
                 report["properties"]["status"] = status
+                clear_api_cache()
                 return jsonify({"status": "success", "message": f"Status laporan diubah menjadi {status} (Fallback)"})
         return jsonify({"error": "Laporan tidak ditemukan (Fallback)"}), 404
 
@@ -674,6 +780,7 @@ def delete_laporan_endpoint(laporan_id):
         if rowcount == 0:
             return jsonify({"error": "Laporan tidak ditemukan"}), 404
 
+        clear_api_cache()
         return jsonify({"status": "success", "message": "Laporan berhasil dihapus"})
     except Exception as e:
         print(f"Error deleting report from DB, using fallback: {e}")
@@ -681,6 +788,7 @@ def delete_laporan_endpoint(laporan_id):
         for i, report in enumerate(FALLBACK_REPORTS):
             if report["properties"]["id"] == laporan_id:
                 del FALLBACK_REPORTS[i]
+                clear_api_cache()
                 return jsonify({"status": "success", "message": "Laporan berhasil dihapus (Fallback)"})
         return jsonify({"error": "Laporan tidak ditemukan (Fallback)"}), 404
 
