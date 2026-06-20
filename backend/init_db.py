@@ -130,6 +130,28 @@ def init_db():
             VALUES (%s, %s, %s, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326))
         """, (fas["nama"], fas["jenis"], fas["alamat"], geom_pt))
 
+    # 4. Laporan table
+    print("Re-creating table 'laporan'...")
+    cur.execute("DROP TABLE IF EXISTS laporan CASCADE;")
+    cur.execute("""
+        CREATE TABLE laporan (
+            id VARCHAR(50) PRIMARY KEY,
+            pelapor VARCHAR(100) NOT NULL,
+            judul VARCHAR(150) NOT NULL,
+            deskripsi TEXT,
+            lat NUMERIC NOT NULL,
+            lng NUMERIC NOT NULL,
+            status VARCHAR(20) DEFAULT 'pending',
+            tanggal TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    cur.execute("""
+        INSERT INTO laporan (id, pelapor, judul, deskripsi, lat, lng, status, tanggal)
+        VALUES ('demo-1', 'Budi Santoso (Kader)', 'Indikasi Gizi Buruk', 
+                'Terdapat anak usia 2 tahun yang berat badannya tidak naik selama 3 bulan. Lokasi dekat Puskesmas Pembantu.', 
+                -5.4240, 104.9110, 'pending', '2024-05-12 10:00:00');
+    """)
+
     cur.close()
     conn.close()
     print("Database initialization completed successfully!")
