@@ -520,7 +520,7 @@ def get_faskes():
                 {
                     "type": "Feature",
                     "geometry": {"type": "Point", "coordinates": [104.91738742007512, -5.420160252847154]},
-                    "properties": {"nama": "Poskesdes Kresnomulyo Barat", "jenis": "Poskesdes", "alamat": "Pekon Kresnomulyo Barat"}
+                    "properties": {"nama": "Poskesdes Kresnomulyo", "jenis": "Poskesdes", "alamat": "Pekon Kresnomulyo"}
                 }
             ]
         })
@@ -825,6 +825,83 @@ def delete_laporan_endpoint(laporan_id):
                 clear_api_cache()
                 return jsonify({"status": "success", "message": "Laporan berhasil dihapus (Fallback)"})
         return jsonify({"error": "Laporan tidak ditemukan (Fallback)"}), 404
+
+
+@app.route("/api/debug_db", methods=["GET"])
+def debug_db():
+    import time
+    import socket
+    import psycopg2
+    
+    result = {
+        "status": "idle",
+        "config": {
+            "host": DB_CONFIG.get("host"),
+            "port": DB_CONFIG.get("port"),
+            "dbname": DB_CONFIG.get("dbname"),
+            "user": DB_CONFIG.get("user")
+        },
+        "steps": []
+    }
+    
+    # Step 1: DNS Resolution
+    t0 = time.time()
+    host = DB_CONFIG.get("host", "localhost")
+    try:
+        ip = socket.gethostbyname(host)
+        dns_time = time.time() - t0
+        result["steps"].append({"step": "DNS Resolution", "status": "SUCCESS", "duration_seconds": dns_time, "resolved_ip": ip})
+    except Exception as e:
+        dns_time = time.time() - t0
+        result["steps"].append({"step": "DNS Resolution", "status": "FAILED", "duration_seconds": dns_time, "error": str(e)})
+        result["status"] = "failed"
+        return jsonify(result)
+        
+    # Step 2: Socket Connect
+    t0 = time.time()
+    port = int(DB_CONFIG.get("port", 5432))
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(3.0)
+        s.connect((ip, port))
+        s.close()
+        tcp_time = time.time() - t0
+        result["steps"].append({"step": "TCP Socket Connect", "status": "SUCCESS", "duration_seconds": tcp_time})
+    except Exception as e:
+        tcp_time = time.time() - t0
+        result["steps"].append({"step": "TCP Socket Connect", "status": "FAILED", "duration_seconds": tcp_time, "error": str(e)})
+        result["status"] = "failed"
+        return jsonify(result)
+        
+    # Step 3: Psycopg2 Connect
+    t0 = time.time()
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        pg_time = time.time() - t0
+        result["steps"].append({"step": "psycopg2.connect", "status": "SUCCESS", "duration_seconds": pg_time})
+    except Exception as e:
+        pg_time = time.time() - t0
+        result["steps"].append({"step": "psycopg2.connect", "status": "FAILED", "duration_seconds": pg_time, "error": str(e)})
+        result["status"] = "failed"
+        return jsonify(result)
+        
+    # Step 4: Simple Query
+    t0 = time.time()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.fetchone()
+        cur.close()
+        conn.close()
+        query_time = time.time() - t0
+        result["steps"].append({"step": "SELECT 1", "status": "SUCCESS", "duration_seconds": query_time})
+        result["status"] = "success"
+    except Exception as e:
+        query_time = time.time() - t0
+        result["steps"].append({"step": "SELECT 1", "status": "FAILED", "duration_seconds": query_time, "error": str(e)})
+        result["status"] = "failed"
+        
+    return jsonify(result)
 
 
 # === Main entry point ===
