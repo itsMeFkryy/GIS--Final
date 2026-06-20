@@ -332,13 +332,13 @@ def get_posyandu():
             "features": [
                 {
                     "type": "Feature",
-                    "geometry": {"type": "Point", "coordinates": [104.975, -5.370]},
-                    "properties": {"nama": "Posyandu Mawar", "alamat": "Dusun 1"}
+                    "geometry": {"type": "Point", "coordinates": [104.9050, -5.4235]},
+                    "properties": {"nama": "Posyandu Kenanga", "alamat": "Sumber Sari"}
                 },
                 {
                     "type": "Feature",
-                    "geometry": {"type": "Point", "coordinates": [104.977, -5.368]},
-                    "properties": {"nama": "Posyandu Melati", "alamat": "Dusun 2"}
+                    "geometry": {"type": "Point", "coordinates": [104.9155, -5.4295]},
+                    "properties": {"nama": "Posyandu Cempaka", "alamat": "Karang Anyar"}
                 }
             ]
         })

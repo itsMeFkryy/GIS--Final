@@ -107,8 +107,6 @@ def init_db():
     # Populate default Posyandu points
     print("Inserting default posyandu points...")
     default_posyandu = [
-        {"nama": "Posyandu Mawar", "alamat": "Dusun 1", "lng": 104.9120, "lat": -5.4215},
-        {"nama": "Posyandu Melati", "alamat": "Dusun 2", "lng": 104.9135, "lat": -5.4240},
         {"nama": "Posyandu Kenanga", "alamat": "Sumber Sari", "lng": 104.9050, "lat": -5.4235},
         {"nama": "Posyandu Cempaka", "alamat": "Karang Anyar", "lng": 104.9155, "lat": -5.4295}
     ]
