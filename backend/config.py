@@ -7,9 +7,9 @@ import os
 
 # Konfigurasi koneksi database PostgreSQL/PostGIS
 DB_CONFIG = {
-    "dbname": "stunting_gis",
-    "user": "postgres",
-    "password": "123",
-    "host": "localhost",
-    "port": 5432
+    "dbname": os.environ.get("DB_NAME", "stunting_gis"),
+    "user": os.environ.get("DB_USER", "postgres"),
+    "password": os.environ.get("DB_PASSWORD", "123"),
+    "host": os.environ.get("DB_HOST", "localhost"),
+    "port": int(os.environ.get("DB_PORT", 5432))
 }
