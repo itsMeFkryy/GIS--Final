@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analisis Wilayah — WebGIS Stunting</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Bootstrap utilities -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+  <!-- jsPDF + AutoTable -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/ai-csv.css">
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+
+<body>
+
+<nav class="navbar">
+
+  <!-- Brand -->
+  <div class="navbar-brand" id="navbar-brand">
+    <i class="ph-fill ph-map-trifold brand-icon" style="font-size: 28px; color: var(--accent);"></i>
+    <div class="brand-text">
+      <div class="brand-name">SIG Stunting</div>
+      <div class="brand-sub">Kresnomulyo Barat</div>
+    </div>
+    <button class="nav-collapse-btn" id="nav-collapse-btn" onclick="NavSidebar.toggle()" title="Toggle sidebar">
+      <i class="ph ph-list" style="font-size: 16px;"></i>
+    </button>
+  </div>
+
+  <!-- Center title -->
+  <div class="navbar-title">
+    <div class="ntitle">Sistem Informasi Geografis</div>
+    <div class="nsubtitle">Persebaran Kasus Stunting — Kab. Pringsewu</div>
+  </div>
+
+  <!-- Right actions -->
+  <div class="navbar-actions">
+    <button class="nav-action-btn btn-pdf" onclick="PDFExport.exportPDF()" title="Export Laporan PDF">
+      <i class="ph ph-file-pdf"></i> Export PDF
+    </button>
+    <button class="nav-action-btn btn-csv" onclick="CSVHandler.exportCSV()" title="Export Data CSV">
+      <i class="ph ph-file-csv"></i> Export CSV
+    </button>
+    <button class="theme-toggle-btn" id="theme-toggle-btn" onclick="Theme.toggle()">
+      <i class="ph-fill ph-moon"></i> Dark Mode
+    </button>
+    <div class="navbar-user">
+      <div class="user-avatar">P</div>
+      <div>
+        <div class="user-name">Petugas</div>
+        <div class="user-role">Admin</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="app-wrapper" id="app-wrapper">
+
+  <aside class="nav-sidebar" id="nav-sidebar">
+
+    <div class="nav-section-label">Menu Utama</div>
+
+    <a class="nav-item" href="index.html">
+      <i class="ph ph-house nav-icon"></i>
+      <span class="nav-label">Dashboard Peta</span>
+    </a>
+    <a class="nav-item active" href="analysis.html">
+      <i class="ph ph-chart-bar nav-icon"></i>
+      <span class="nav-label">Analisis Wilayah</span>
+    </a>
+
+
+    <div class="nav-divider"></div>
+    <div class="nav-section-label">Laporan</div>
+
+    <a class="nav-item" href="reports.html">
+      <i class="ph ph-clipboard-text nav-icon"></i>
+      <span class="nav-label">Laporan Kasus</span>
+      <span class="nav-badge" id="sidebar-badge-laporan" style="display:none;">0</span>
+    </a>
+    <a class="nav-item" href="verification.html">
+      <i class="ph ph-check-circle nav-icon"></i>
+      <span class="nav-label">Verifikasi Laporan</span>
+      <span class="nav-badge" id="sidebar-badge-verifikasi" style="display:none;">0</span>
+    </a>
+
+    <div class="nav-divider"></div>
+    <div class="nav-section-label">Data</div>
+
+    <a class="nav-item" href="import.html" id="nav-import">
+      <i class="ph ph-upload nav-icon"></i>
+      <span class="nav-label">Import Data CSV</span>
+    </a>
+
+
+  </aside>
+
+  <div class="content-area" style="overflow-y: auto; display: flex; flex-direction: column;">
+    
+<div style="padding: 28px; flex: 1;">
+  <div style="margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 16px;">
+    <h2 style="color: var(--text-1); font-weight: 800; font-family: 'Plus Jakarta Sans', sans-serif; margin-bottom: 4px;">Analisis Wilayah</h2>
+    <p style="font-size: 13px; color: var(--text-3); margin: 0;">Analisis mendalam data stunting berdasarkan indikator wilayah. Data otomatis diambil dari backend.</p>
+  </div>
+
+  <!-- Summary Cards -->
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px;" id="analysis-cards">
+    <div class="analysis-card" style="background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px;">
+      <div style="font-size:11px; color:var(--text-3); text-transform:uppercase; font-weight:700; letter-spacing:0.5px;">Total Wilayah</div>
+      <div style="font-size:28px; font-weight:800; color:var(--text-1); margin-top:4px;" id="a-total-wil">—</div>
+    </div>
+    <div class="analysis-card" style="background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px;">
+      <div style="font-size:11px; color:var(--text-3); text-transform:uppercase; font-weight:700; letter-spacing:0.5px;">Rata-rata Prevalensi</div>
+      <div style="font-size:28px; font-weight:800; color:var(--red);" id="a-avg-prev">—</div>
+    </div>
+    <div class="analysis-card" style="background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px;">
+      <div style="font-size:11px; color:var(--text-3); text-transform:uppercase; font-weight:700; letter-spacing:0.5px;">Wilayah Rentan</div>
+      <div style="font-size:28px; font-weight:800; color:var(--amber);" id="a-rentan-count">—</div>
+    </div>
+    <div class="analysis-card" style="background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:20px;">
+      <div style="font-size:11px; color:var(--text-3); text-transform:uppercase; font-weight:700; letter-spacing:0.5px;">Total Balita</div>
+      <div style="font-size:28px; font-weight:800; color:var(--accent);" id="a-total-balita">—</div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;">
+    <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:20px;">
+      <div style="font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:14px; display:flex; align-items:center; gap:6px;">
+        <i class="ph-fill ph-chart-bar" style="color:var(--accent);"></i> Prevalensi Stunting per Wilayah
+      </div>
+      <canvas id="chart-prevalensi" height="220"></canvas>
+    </div>
+    <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:20px;">
+      <div style="font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:14px; display:flex; align-items:center; gap:6px;">
+        <i class="ph-fill ph-chart-pie" style="color:var(--teal);"></i> Distribusi Kategori Kerentanan
+      </div>
+      <canvas id="chart-kerentanan" height="220"></canvas>
+    </div>
+  </div>
+
+  <!-- Data Table -->
+  <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:20px; overflow-x:auto;">
+    <div style="font-size:13px; font-weight:700; color:var(--text-1); margin-bottom:14px; display:flex; align-items:center; gap:6px;">
+      <i class="ph-fill ph-table" style="color:var(--accent);"></i> Tabel Data Wilayah
+    </div>
+    <table id="analysis-table" style="width:100%; border-collapse:collapse; font-size:12px;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border);">
+          <th style="text-align:left; padding:10px 8px; color:var(--text-3); font-weight:700; font-size:10px; text-transform:uppercase;">No</th>
+          <th style="text-align:left; padding:10px 8px; color:var(--text-3); font-weight:700; font-size:10px; text-transform:uppercase;">Wilayah</th>
+          <th style="text-align:right; padding:10px 8px; color:var(--text-3); font-weight:700; font-size:10px; text-transform:uppercase;">Balita</th>
+          <th style="text-align:right; padding:10px 8px; color:var(--text-3); font-weight:700; font-size:10px; text-transform:uppercase;">Stunting</th>
+          <th style="text-align:right; padding:10px 8px; color:var(--text-3); font-weight:700; font-size:10px; text-transform:uppercase;">Prevalensi</th>
+          <th style="text-align:right; padding:10px 8px; color:var(--text-3); font-weight:700; font-size:10px; text-transform:uppercase;">Air Bersih</th>
+          <th style="text-align:right; padding:10px 8px; color:var(--text-3); font-weight:700; font-size:10px; text-transform:uppercase;">Sanitasi</th>
+          <th style="text-align:center; padding:10px 8px; color:var(--text-3); font-weight:700; font-size:10px; text-transform:uppercase;">Kerentanan</th>
+        </tr>
+      </thead>
+      <tbody id="analysis-tbody">
+        <tr><td colspan="8" style="text-align:center; padding:30px; color:var(--text-3);">Memuat data...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+  </div>
+
+</div>
+
+<script src="js/theme.js"></script>
+<script src="js/shared.js"></script>
+<script>
+  const NavSidebar = {
+    toggle() {
+      const wrapper = document.getElementById('app-wrapper');
+      const sidebar = document.getElementById('nav-sidebar');
+      const btn = document.getElementById('nav-collapse-btn');
+      const isCollapsed = sidebar.classList.toggle('collapsed');
+      wrapper.classList.toggle('nav-collapsed', isCollapsed);
+      btn.title = isCollapsed ? 'Buka sidebar' : 'Tutup sidebar';
+    }
+  };
+  Theme.init();
+</script>
+
+<script>
+  async function loadAnalysis() {
+    const apiBase = window.API_BASE_URL || 'http://localhost:5000/api';
+    try {
+      const res = await fetch(`${apiBase}/wilayah`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const features = data.features || [];
+
+      // Summary
+      const totalWil = features.length;
+      const totalBalita = features.reduce((s,f) => s + (f.properties.jml_balita||0), 0);
+      const totalStunt = features.reduce((s,f) => s + (f.properties.jml_stunt||0), 0);
+      const avgPrev = totalBalita > 0 ? ((totalStunt/totalBalita)*100).toFixed(1) : '0';
+      const rentanCount = features.filter(f => ['Rentan','Sangat Rentan'].includes(f.properties.kat_rentan)).length;
+
+      document.getElementById('a-total-wil').textContent = totalWil;
+      document.getElementById('a-avg-prev').textContent = avgPrev + '%';
+      document.getElementById('a-rentan-count').textContent = rentanCount;
+      document.getElementById('a-total-balita').textContent = totalBalita.toLocaleString();
+
+      // Sort by prevalensi
+      const sorted = [...features].sort((a,b) => (b.properties.prev_stunt||0) - (a.properties.prev_stunt||0));
+
+      // Table
+      const tbody = document.getElementById('analysis-tbody');
+      tbody.innerHTML = sorted.map((f,i) => {
+        const p = f.properties;
+        const badgeCls = {
+          'Aman':'badge-aman','Waspada':'badge-waspada','Rentan':'badge-rentan','Sangat Rentan':'badge-sangat-rentan'
+        }[p.kat_rentan] || 'badge-aman';
+        return `<tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:10px 8px; color:var(--text-2);">${i+1}</td>
+          <td style="padding:10px 8px; color:var(--text-1); font-weight:600;">${p.nama_wil}</td>
+          <td style="padding:10px 8px; text-align:right; color:var(--text-2);">${p.jml_balita||0}</td>
+          <td style="padding:10px 8px; text-align:right; color:var(--text-2);">${p.jml_stunt||0}</td>
+          <td style="padding:10px 8px; text-align:right; font-weight:700; color:var(--red);">${(p.prev_stunt||0).toFixed(1)}%</td>
+          <td style="padding:10px 8px; text-align:right; color:var(--text-2);">${(p.air_bersih||0).toFixed(1)}%</td>
+          <td style="padding:10px 8px; text-align:right; color:var(--text-2);">${(p.sanitasi||0).toFixed(1)}%</td>
+          <td style="padding:10px 8px; text-align:center;"><span class="kategori-badge ${badgeCls}">${p.kat_rentan||'Aman'}</span></td>
+        </tr>`;
+      }).join('');
+
+      // Chart 1: Bar chart prevalensi
+      const labels = sorted.map(f => f.properties.nama_wil);
+      const prevData = sorted.map(f => f.properties.prev_stunt || 0);
+      new Chart(document.getElementById('chart-prevalensi'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Prevalensi (%)',
+            data: prevData,
+            backgroundColor: prevData.map(v => v >= 30 ? '#bd0026' : v >= 20 ? '#fd8d3c' : v >= 10 ? '#fecc5c' : '#31a354'),
+            borderRadius: 6,
+            barThickness: 24
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,0.1)' }, ticks: { color: '#999' } },
+            x: { grid: { display: false }, ticks: { color: '#999', font: { size: 10 } } }
+          }
+        }
+      });
+
+      // Chart 2: Doughnut kerentanan
+      const katCounts = {};
+      features.forEach(f => {
+        const k = f.properties.kat_rentan || 'Aman';
+        katCounts[k] = (katCounts[k]||0) + 1;
+      });
+      new Chart(document.getElementById('chart-kerentanan'), {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(katCounts),
+          datasets: [{
+            data: Object.values(katCounts),
+            backgroundColor: ['#31a354','#fecc5c','#fd8d3c','#bd0026'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          cutout: '55%',
+          plugins: { legend: { position: 'bottom', labels: { color: '#999', padding: 16 } } }
+        }
+      });
+
+    } catch(e) {
+      document.getElementById('analysis-tbody').innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--red);"><i class="ph-fill ph-warning-circle"></i> Gagal memuat data. Pastikan backend berjalan.</td></tr>';
+    }
+  }
+  document.addEventListener('DOMContentLoaded', loadAnalysis);
+</script>
+
+</body>
+</html>

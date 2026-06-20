@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verifikasi Laporan — WebGIS Stunting</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Bootstrap utilities -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+  <!-- jsPDF + AutoTable -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/ai-csv.css">
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+
+<body>
+
+<nav class="navbar">
+
+  <!-- Brand -->
+  <div class="navbar-brand" id="navbar-brand">
+    <i class="ph-fill ph-map-trifold brand-icon" style="font-size: 28px; color: var(--accent);"></i>
+    <div class="brand-text">
+      <div class="brand-name">SIG Stunting</div>
+      <div class="brand-sub">Kresnomulyo Barat</div>
+    </div>
+    <button class="nav-collapse-btn" id="nav-collapse-btn" onclick="NavSidebar.toggle()" title="Toggle sidebar">
+      <i class="ph ph-list" style="font-size: 16px;"></i>
+    </button>
+  </div>
+
+  <!-- Center title -->
+  <div class="navbar-title">
+    <div class="ntitle">Sistem Informasi Geografis</div>
+    <div class="nsubtitle">Persebaran Kasus Stunting — Kab. Pringsewu</div>
+  </div>
+
+  <!-- Right actions -->
+  <div class="navbar-actions">
+    <button class="nav-action-btn btn-pdf" onclick="PDFExport.exportPDF()" title="Export Laporan PDF">
+      <i class="ph ph-file-pdf"></i> Export PDF
+    </button>
+    <button class="nav-action-btn btn-csv" onclick="CSVHandler.exportCSV()" title="Export Data CSV">
+      <i class="ph ph-file-csv"></i> Export CSV
+    </button>
+    <button class="theme-toggle-btn" id="theme-toggle-btn" onclick="Theme.toggle()">
+      <i class="ph-fill ph-moon"></i> Dark Mode
+    </button>
+    <div class="navbar-user">
+      <div class="user-avatar">P</div>
+      <div>
+        <div class="user-name">Petugas</div>
+        <div class="user-role">Admin</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="app-wrapper" id="app-wrapper">
+
+  <aside class="nav-sidebar" id="nav-sidebar">
+
+    <div class="nav-section-label">Menu Utama</div>
+
+    <a class="nav-item" href="index.html">
+      <i class="ph ph-house nav-icon"></i>
+      <span class="nav-label">Dashboard Peta</span>
+    </a>
+    <a class="nav-item" href="analysis.html">
+      <i class="ph ph-chart-bar nav-icon"></i>
+      <span class="nav-label">Analisis Wilayah</span>
+    </a>
+
+
+    <div class="nav-divider"></div>
+    <div class="nav-section-label">Laporan</div>
+
+    <a class="nav-item" href="reports.html">
+      <i class="ph ph-clipboard-text nav-icon"></i>
+      <span class="nav-label">Laporan Kasus</span>
+      <span class="nav-badge" id="sidebar-badge-laporan" style="display:none;">0</span>
+    </a>
+    <a class="nav-item active" href="verification.html">
+      <i class="ph ph-check-circle nav-icon"></i>
+      <span class="nav-label">Verifikasi Laporan</span>
+      <span class="nav-badge" id="sidebar-badge-verifikasi" style="display:none;">0</span>
+    </a>
+
+    <div class="nav-divider"></div>
+    <div class="nav-section-label">Data</div>
+
+    <a class="nav-item" href="import.html" id="nav-import">
+      <i class="ph ph-upload nav-icon"></i>
+      <span class="nav-label">Import Data CSV</span>
+    </a>
+
+
+  </aside>
+
+  <div class="content-area" style="overflow-y: auto; display: flex; flex-direction: column;">
+    
+<div style="padding: 28px; flex: 1;">
+  <div style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+    <div>
+      <h2 style="color: var(--text-1); font-weight: 800; font-family: 'Plus Jakarta Sans', sans-serif; margin-bottom: 4px;">Verifikasi Laporan</h2>
+      <p style="font-size: 13px; color: var(--text-3); margin: 0;">Tinjau, verifikasi, atau tolak laporan yang masuk dari masyarakat.</p>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <select id="filter-status" onchange="fetchLaporan()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--bg-card); color:var(--text-1); font-size:12px; outline:none;">
+        <option value="all">Semua Status</option>
+        <option value="pending">Menunggu</option>
+        <option value="verified">Terverifikasi</option>
+        <option value="rejected">Ditolak</option>
+      </select>
+      <button onclick="fetchLaporan()" style="padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-1); font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <i class="ph ph-arrows-clockwise"></i> Segarkan
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats mini -->
+  <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:24px;" id="verif-stats">
+    <div style="background:var(--amber-soft); border:1px solid var(--amber); border-radius:10px; padding:14px 18px; display:flex; align-items:center; gap:12px;">
+      <i class="ph-fill ph-clock" style="font-size:24px; color:var(--amber);"></i>
+      <div><div style="font-size:10px; color:var(--amber); font-weight:700; text-transform:uppercase;">Menunggu</div><div style="font-size:22px; font-weight:800; color:var(--amber);" id="v-pending">0</div></div>
+    </div>
+    <div style="background:var(--green-soft); border:1px solid var(--green); border-radius:10px; padding:14px 18px; display:flex; align-items:center; gap:12px;">
+      <i class="ph-fill ph-check-circle" style="font-size:24px; color:var(--green);"></i>
+      <div><div style="font-size:10px; color:var(--green); font-weight:700; text-transform:uppercase;">Terverifikasi</div><div style="font-size:22px; font-weight:800; color:var(--green);" id="v-verified">0</div></div>
+    </div>
+    <div style="background:var(--red-soft); border:1px solid var(--red); border-radius:10px; padding:14px 18px; display:flex; align-items:center; gap:12px;">
+      <i class="ph-fill ph-x-circle" style="font-size:24px; color:var(--red);"></i>
+      <div><div style="font-size:10px; color:var(--red); font-weight:700; text-transform:uppercase;">Ditolak</div><div style="font-size:22px; font-weight:800; color:var(--red);" id="v-rejected">0</div></div>
+    </div>
+  </div>
+
+  <div id="laporan-container" style="display: grid; gap: 14px;">
+    <div style="text-align: center; padding: 40px; color: var(--text-3);">Memuat data laporan...</div>
+  </div>
+</div>
+
+  </div>
+
+</div>
+
+<script src="js/theme.js"></script>
+<script src="js/shared.js"></script>
+<script>
+  const NavSidebar = {
+    toggle() {
+      const wrapper = document.getElementById('app-wrapper');
+      const sidebar = document.getElementById('nav-sidebar');
+      const btn = document.getElementById('nav-collapse-btn');
+      const isCollapsed = sidebar.classList.toggle('collapsed');
+      wrapper.classList.toggle('nav-collapsed', isCollapsed);
+      btn.title = isCollapsed ? 'Buka sidebar' : 'Tutup sidebar';
+    }
+  };
+  Theme.init();
+</script>
+
+<script>
+  async function fetchLaporan() {
+    const container = document.getElementById('laporan-container');
+    const filter = document.getElementById('filter-status').value;
+    container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-3);">Memuat...</div>';
+    const apiBase = window.API_BASE_URL || 'http://localhost:5000/api';
+    try {
+      const res = await fetch(`${apiBase}/laporan`);
+      const data = await res.json();
+      let features = data.features || [];
+
+      // Update stats
+      const pendingC = features.filter(f=>f.properties.status==='pending').length;
+      const verifiedC = features.filter(f=>f.properties.status==='verified').length;
+      const rejectedC = features.filter(f=>f.properties.status==='rejected').length;
+      document.getElementById('v-pending').textContent = pendingC;
+      document.getElementById('v-verified').textContent = verifiedC;
+      document.getElementById('v-rejected').textContent = rejectedC;
+
+      // Filter
+      if (filter !== 'all') features = features.filter(f => f.properties.status === filter);
+
+      if (features.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-3);"><i class="ph ph-check-circle" style="font-size:32px; color:var(--green); display:block; margin-bottom:8px;"></i>Tidak ada laporan yang cocok dengan filter.</div>';
+        return;
+      }
+      container.innerHTML = '';
+      features.forEach(f => {
+        const p = f.properties;
+        const d = new Date(p.tanggal);
+        const dStr = d.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}) + ' ' + d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+        const statusMap = {
+          pending: {label:'Menunggu Verifikasi', bg:'var(--amber-soft)', color:'var(--amber)', border:'var(--amber)', icon:'ph-clock'},
+          verified: {label:'Terverifikasi', bg:'var(--green-soft)', color:'var(--green)', border:'var(--green)', icon:'ph-check-circle'},
+          rejected: {label:'Ditolak', bg:'var(--red-soft)', color:'var(--red)', border:'var(--red)', icon:'ph-x-circle'}
+        };
+        const s = statusMap[p.status] || statusMap.pending;
+
+        const card = document.createElement('div');
+        card.style.cssText = 'background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:18px 22px; transition:all 0.2s;';
+        card.onmouseenter = () => card.style.boxShadow = 'var(--shadow-md)';
+        card.onmouseleave = () => card.style.boxShadow = '';
+
+        let actionBtns = '';
+        if (p.status === 'pending') {
+          actionBtns = `
+            <button onclick="updateStatus('${p.id}','verified')" style="padding:8px 14px; border-radius:6px; border:none; background:var(--green); color:white; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;"><i class="ph ph-check"></i> Verifikasi</button>
+            <button onclick="updateStatus('${p.id}','rejected')" style="padding:8px 14px; border-radius:6px; border:1px solid var(--red); background:transparent; color:var(--red); font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;"><i class="ph ph-x"></i> Tolak</button>`;
+        } else {
+          actionBtns = `
+            <button onclick="updateStatus('${p.id}','pending')" style="padding:8px 14px; border-radius:6px; border:1px solid var(--amber); background:transparent; color:var(--amber); font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;"><i class="ph ph-arrow-counter-clockwise"></i> Reset</button>`;
+        }
+        actionBtns += `<button onclick="deleteLaporan('${p.id}')" style="padding:8px 14px; border-radius:6px; border:1px solid var(--red); background:transparent; color:var(--red); font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;"><i class="ph ph-trash"></i> Hapus</button>`;
+
+        card.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+            <div>
+              <div style="font-size:15px; font-weight:700; color:var(--text-1); margin-bottom:3px;">${p.judul}</div>
+              <div style="font-size:11px; color:var(--text-3); display:flex; gap:12px; flex-wrap:wrap;">
+                <span><i class="ph-fill ph-user"></i> ${p.pelapor}</span>
+                <span><i class="ph-fill ph-calendar"></i> ${dStr}</span>
+                <span><i class="ph-fill ph-map-pin"></i> ${Number(p.lat).toFixed(4)}, ${Number(p.lng).toFixed(4)}</span>
+              </div>
+            </div>
+            <span style="padding:4px 12px; border-radius:20px; font-size:10px; font-weight:700; background:${s.bg}; color:${s.color}; border:1px solid ${s.border}; flex-shrink:0; display:flex; align-items:center; gap:4px;">
+              <i class="ph-fill ${s.icon}"></i> ${s.label}
+            </span>
+          </div>
+          <div style="font-size:12px; color:var(--text-2); background:var(--bg-card-2,rgba(0,0,0,0.06)); padding:10px 14px; border-radius:8px; margin-bottom:12px; border:1px dashed var(--border);">
+            ${p.deskripsi}
+          </div>
+          <div style="display:flex; justify-content:flex-end; gap:8px;">
+            ${actionBtns}
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    } catch(e) {
+      container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--red);"><i class="ph-fill ph-warning-circle" style="font-size:32px;"></i><br>Gagal memuat data.</div>';
+    }
+  }
+
+  async function updateStatus(id, status) {
+    const apiBase = window.API_BASE_URL || 'http://localhost:5000/api';
+    try {
+      await fetch(`${apiBase}/laporan/${id}/verifikasi`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})
+      });
+      fetchLaporan();
+    } catch { alert('Gagal mengupdate status.'); }
+  }
+
+  async function deleteLaporan(id) {
+    if (!confirm('Yakin ingin menghapus laporan ini?')) return;
+    const apiBase = window.API_BASE_URL || 'http://localhost:5000/api';
+    try {
+      await fetch(`${apiBase}/laporan/${id}`, { method: 'DELETE' });
+      fetchLaporan();
+    } catch { alert('Gagal menghapus.'); }
+  }
+
+  document.addEventListener('DOMContentLoaded', fetchLaporan);
+</script>
+
+</body>
+</html>

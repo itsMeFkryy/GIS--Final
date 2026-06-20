@@ -1,0 +1,7 @@
+kode_wilay,nama_wilayah,jumlah_balita,jumlah_stunting,kategori_ekonomi,akses_air_bersih,sanitasi_layak,kepemilikan_jamban,penerima_bansos,jumlah_posyandu
+D01,Dusun 1,45,12,Menengah Bawah,72.5,65.0,80.0,8,1
+D02,Dusun 2,38,4,Menengah,88.0,82.0,90.0,3,1
+D03,Dusun 3,52,18,Rendah,58.0,50.0,62.0,15,2
+D04,Dusun 4,30,3,Menengah,91.0,88.0,95.0,2,1
+POS01,Wilayah Posyandu 1,41,9,Menengah Bawah,75.0,70.0,78.0,6,1
+POS02,Wilayah Posyandu 2,36,14,Rendah,60.0,55.0,65.0,12,1
