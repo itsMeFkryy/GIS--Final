@@ -389,8 +389,13 @@ def get_faskes():
             "features": [
                 {
                     "type": "Feature",
-                    "geometry": {"type": "Point", "coordinates": [104.972, -5.372]},
+                    "geometry": {"type": "Point", "coordinates": [104.9165, -5.4205]},
                     "properties": {"nama": "Puskesmas Pembantu Ambarawa", "jenis": "Puskesmas Pembantu", "alamat": "Jl. Raya Kresnomulyo"}
+                },
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [104.91738742007512, -5.420160252847154]},
+                    "properties": {"nama": "Poskesdes Kresnomulyo Barat", "jenis": "Poskesdes", "alamat": "Pekon Kresnomulyo Barat"}
                 }
             ]
         })
